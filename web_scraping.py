@@ -1,8 +1,12 @@
+import os
 from nturl2path import url2pathname
 import requests
 from bs4 import BeautifulSoup
 from pydub import AudioSegment
 import numpy as np
+import pydub.exceptions
+pydub.exceptions.decoder_exe = '/usr/local/bin/ffmpeg'
+
 
 def get_html(url):
     response = requests.get(url)
@@ -42,9 +46,16 @@ def scrape_mp3():
                     count +=1
 
 def mp3_to_numpy():
-    audio = AudioSegment.from_mp3("./data/chinese/1.mp3")
-    audio_array = np.array(audio.get_array_of_samples())
-    print(audio_array)
+    # audio = AudioSegment.from_mp3("./data/chinese/1.mp3")
+    # audio_array = np.array(audio.get_array_of_samples())
+    #print(audio_array.shape)
+    audio_list = []
+    for file in os.listdir("./data/chinese/"):
+        print(file)
+        audio = AudioSegment.from_mp3("./data/chinese/" + file)
+        print(audio)
+        audio_list.append(np.array(audio.get_array_of_samples()))
+    print(audio_list)
 
 if __name__ == "__main__":
     #scrape_mp3()
