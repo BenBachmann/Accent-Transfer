@@ -46,16 +46,27 @@ def scrape_mp3():
                     count +=1
 
 def mp3_to_numpy():
-    # audio = AudioSegment.from_mp3("./data/chinese/1.mp3")
-    # audio_array = np.array(audio.get_array_of_samples())
-    #print(audio_array.shape)
-    audio_list = []
+    # finds max length of all numpy representations of mp3s
+    max_len = 0
     for file in os.listdir("./data/chinese/"):
-        print(file)
-        audio = AudioSegment.from_mp3("./data/chinese/" + file)
-        print(audio)
-        audio_list.append(np.array(audio.get_array_of_samples()))
-    print(audio_list)
+        try:
+            audio = AudioSegment.from_mp3("./data/chinese/" + file)
+            audio_np = np.array(audio.get_array_of_samples())
+            if len(audio_np) > max_len:
+                max_len = len(audio_np)
+        except:
+            continue
+
+    audio_list = np.zeros((len(os.listdir("./data/chinese/")), max_len))
+    count = 0
+    for file in os.listdir("./data/chinese/"):
+        try:
+            audio = AudioSegment.from_mp3("./data/chinese/" + file)
+            audio_np = np.array(audio.get_array_of_samples())
+        except:
+            continue
+        audio_list[count][:len(audio_np)] = audio_np
+        count += 1
 
 if __name__ == "__main__":
     #scrape_mp3()
