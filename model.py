@@ -100,23 +100,34 @@ X_test = X_test.reshape(1, X_test.shape[0])
 # X_test = X_test.flatten()
 
 # for GRU:
-X_train = tf.expand_dims(X_train, 2)
-y_train = tf.expand_dims(y_train, 2)
-X_test = tf.expand_dims(X_test, 2)
+# X_train = tf.expand_dims(X_train, 2)
+# y_train = tf.expand_dims(y_train, 2)
+# X_test = tf.expand_dims(X_test, 2)
+
+# for CNN:
+# X_train = tf.expand_dims(X_train, 2)
+# y_train = tf.expand_dims(y_train, 2)
+# X_test = tf.expand_dims(X_test, 2)
+# X_train = tf.expand_dims(X_train, 2)
+# y_train = tf.expand_dims(y_train, 2)
+# X_test = tf.expand_dims(X_test, 2)
 
 # Define the RNN model
 model = tf.keras.Sequential()
 # model.add(tf.keras.layers.GRU(8, input_shape=(None, X_train.shape[1]), return_sequences=True))
-model.add(tf.keras.layers.GRU(y_train.shape[1], return_sequences=True))
+#model.add(tf.keras.layers.GRU(y_train.shape[1], return_sequences=True))
+#model.add(tf.keras.layers.Conv2D(5, 1000))
+model.add(tf.keras.layers.Dense(1000, use_bias=True))
+#model.add(tf.keras.layers.Dense(100, use_bias=True))
 model.add(tf.keras.layers.Dense(y_train.shape[1], activation="leaky_relu", use_bias=True))
-model.add(tf.keras.layers.Dropout(0.2))
+model.add(tf.keras.layers.Dropout(0.3))
 
 
 # Compile the model
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # Train the model
-model.fit(X_train, y_train, epochs=10, verbose=2)
+model.fit(X_train, y_train, epochs=3, verbose=2)
 
 # Use the model to generate new images
 generated_image = model.predict(X_test)
@@ -133,4 +144,4 @@ data = generated_image[0]
 
 rate = 44100
 scaled = np.int16(data / np.max(np.abs(data)) * 32767)
-wav.write('test.wav', rate, scaled)
+wav.write('test2.wav', rate, scaled)
