@@ -86,64 +86,92 @@ import scipy.io.wavfile as wav
 #     output_audio = transformer_model(input_audio)
 #     return output_audio
 
-X_train = preprocessing.mp3_to_numpy("chinese")[:-1]
-#print("XTRAINSHAPE", X_train.shape)
-y_train = preprocessing.mp3_to_numpy("italian")[:-1]
-X_test = preprocessing.mp3_to_numpy("chinese")[-1]
-print("XTEST", X_test.shape)
-X_test = X_test.reshape(1, X_test.shape[0])
+def base_train_generate():
+
+    X_train = preprocessing.mp3_to_numpy("chinese")[:-1]
+    #print("XTRAINSHAPE", X_train.shape)
+    y_train = preprocessing.mp3_to_numpy("italian")[:-1]
+    X_test = preprocessing.mp3_to_numpy("chinese")[-1]
+    print("XTEST", X_test.shape)
+    X_test = X_test.reshape(1, X_test.shape[0])
 
 
-#reshape
-# X_train = X_train.reshape(1, X_train.shape[1])
-# y_train = y_train.reshape(1, y_train.shape[1])
-# X_test = X_test.reshape(1, X_test.shape[1])
-# X_train = X_train.flatten()
-# y_train = y_train.flatten()
-# X_test = X_test.flatten()
+    #reshape
+    # X_train = X_train.reshape(1, X_train.shape[1])
+    # y_train = y_train.reshape(1, y_train.shape[1])
+    # X_test = X_test.reshape(1, X_test.shape[1])
+    # X_train = X_train.flatten()
+    # y_train = y_train.flatten()
+    # X_test = X_test.flatten()
 
-# for GRU:
-# X_train = tf.expand_dims(X_train, 2)
-# y_train = tf.expand_dims(y_train, 2)
-# X_test = tf.expand_dims(X_test, 2)
+    # for GRU:
+    # X_train = tf.expand_dims(X_train, 2)
+    # y_train = tf.expand_dims(y_train, 2)
+    # X_test = tf.expand_dims(X_test, 2)
 
-# for CNN:
-# X_train = tf.expand_dims(X_train, 2)
-# y_train = tf.expand_dims(y_train, 2)
-# X_test = tf.expand_dims(X_test, 2)
-# X_train = tf.expand_dims(X_train, 2)
-# y_train = tf.expand_dims(y_train, 2)
-# X_test = tf.expand_dims(X_test, 2)
-
-
-model = tf.keras.Sequential()
-# model.add(tf.keras.layers.GRU(8, input_shape=(None, X_train.shape[1]), return_sequences=True))
-#model.add(tf.keras.layers.GRU(y_train.shape[1], return_sequences=True))
-#model.add(tf.keras.layers.Conv2D(5, 1000))
-# model.add(tf.keras.layers.Dense(1000, use_bias=True)) ##**comment in for Ben's base model
-#model.add(tf.keras.layers.Dense(100, use_bias=True))
-# model.add(tf.keras.layers.Dense(y_train.shape[1], activation="leaky_relu", use_bias=True)) ##**comment in for Ben's base model
-# model.add(tf.keras.layers.Dropout(0.2)) ##**comment in for Ben's base model
-
-# RNN using LSTM:
-model.add(tf.keras.layers.LSTM(units=128, input_shape=(X_train.shape[1], 1)))
-model.add(tf.keras.layers.Dense(1, activation='linear')) #also try with sigmoid activation here
+    # for CNN:
+    # X_train = tf.expand_dims(X_train, 2)
+    # y_train = tf.expand_dims(y_train, 2)
+    # X_test = tf.expand_dims(X_test, 2)
+    # X_train = tf.expand_dims(X_train, 2)
+    # y_train = tf.expand_dims(y_train, 2)
+    # X_test = tf.expand_dims(X_test, 2)
 
 
-# Compile the model
-model.compile(optimizer='adam', loss='mean_squared_error')
+    model = tf.keras.Sequential()
+    # model.add(tf.keras.layers.GRU(8, input_shape=(None, X_train.shape[1]), return_sequences=True))
+    #model.add(tf.keras.layers.GRU(y_train.shape[1], return_sequences=True))
+    #model.add(tf.keras.layers.Conv2D(5, 1000))
+    model.add(tf.keras.layers.Dense(1000, use_bias=True)) ##**comment in for Ben's base model
+    #model.add(tf.keras.layers.Dense(100, use_bias=True))
+    model.add(tf.keras.layers.Dense(y_train.shape[1], activation="leaky_relu", use_bias=True)) ##**comment in for Ben's base model
+    model.add(tf.keras.layers.Dropout(0.3)) ##**comment in for Ben's base model
 
-# Reshape the audio data for LSTM input
-X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+    model.compile(optimizer='adam', loss='mean_squared_error')
 
-# Train the model
-model.fit(X_train, X_train, epochs=10, batch_size=32, shuffle=False, verbose=2)
+    model.fit(X_train, y_train, epochs=3, verbose=2)
 
-# Use the model to generate new audio
-generated_audio = model.predict(X_test)
+    generated_audio = model.predict(X_test)
 
-data = generated_audio[0]
+    data = generated_audio[0]
 
-rate = 44100
-scaled = np.int16(data / np.max(np.abs(data)) * 32767)
-wav.write('test3.wav', rate, scaled)
+    rate = 44100
+    scaled = np.int16(data / np.max(np.abs(data)) * 32767)
+    wav.write('test3.wav', rate, scaled)
+
+
+def LSTM_train_generate():
+
+    X_train = preprocessing.mp3_to_numpy("chinese")[:-1]
+    #print("XTRAINSHAPE", X_train.shape)
+    y_train = preprocessing.mp3_to_numpy("italian")[:-1]
+    X_test = preprocessing.mp3_to_numpy("chinese")[-1]
+    print("XTEST", X_test.shape)
+    X_test = X_test.reshape(1, X_test.shape[0])
+
+    model = tf.keras.Sequential()
+    # RNN using LSTM:
+    model.add(tf.keras.layers.LSTM(units=128, input_shape=(X_train.shape[1], 1)))
+    model.add(tf.keras.layers.Dense(1, activation='linear')) #also try with sigmoid activation here
+
+    # Compile the model
+    model.compile(optimizer='adam', loss='mean_squared_error')
+
+    # Reshape the audio data for LSTM input
+    X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+
+    # Train the model
+    model.fit(X_train, X_train, epochs=10, batch_size=32, shuffle=False, verbose=2)
+
+    # Use the model to generate new audio
+    generated_audio = model.predict(X_test)
+
+    data = generated_audio[0]
+
+    rate = 44100
+    scaled = np.int16(data / np.max(np.abs(data)) * 32767)
+    wav.write('test3.wav', rate, scaled)
+
+if __name__ == "__main__":
+    # base_train_generate()
+    LSTM_train_generate()
