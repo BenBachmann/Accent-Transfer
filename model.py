@@ -146,7 +146,7 @@ def LSTM_train_generate():
     #print("XTRAINSHAPE", X_train.shape)
     y_train = preprocessing.mp3_to_numpy("italian")[:-1]
     X_test = preprocessing.mp3_to_numpy("chinese")[-1]
-    print("XTEST", X_test.shape)
+    # print("XTEST", X_test.shape)
     X_test = X_test.reshape(1, X_test.shape[0])
 
     model = tf.keras.Sequential()
@@ -158,10 +158,12 @@ def LSTM_train_generate():
     model.compile(optimizer='adam', loss='mean_squared_error')
 
     # Reshape the audio data for LSTM input
-    X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+    # X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
 
+    print(X_train.shape)
+    print(y_train.shape)
     # Train the model
-    model.fit(X_train, X_train, epochs=10, batch_size=32, shuffle=False, verbose=2)
+    model.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False, verbose=2)
 
     # Use the model to generate new audio
     generated_audio = model.predict(X_test)
