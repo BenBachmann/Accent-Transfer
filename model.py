@@ -59,10 +59,13 @@
 from re import X
 import sys
 sys.path.append('/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages')
-
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import preprocessing
+import numpy as np
+from pydub import AudioSegment
+import scipy.io.wavfile as wav
+#import model
 
 # def transformer():
 #     # Load the dataset
@@ -83,7 +86,7 @@ import preprocessing
 #     output_audio = transformer_model(input_audio)
 #     return output_audio
 
-X_train = preprocessing.mp3_to_numpy("chinese")[:-2]
+X_train = preprocessing.mp3_to_numpy("chinese")[:-1]
 #print("XTRAINSHAPE", X_train.shape)
 y_train = preprocessing.mp3_to_numpy("italian")[:-1]
 X_test = preprocessing.mp3_to_numpy("chinese")[-1]
@@ -112,36 +115,35 @@ X_test = X_test.reshape(1, X_test.shape[0])
 # y_train = tf.expand_dims(y_train, 2)
 # X_test = tf.expand_dims(X_test, 2)
 
-# Define the RNN model
+
 model = tf.keras.Sequential()
 # model.add(tf.keras.layers.GRU(8, input_shape=(None, X_train.shape[1]), return_sequences=True))
 #model.add(tf.keras.layers.GRU(y_train.shape[1], return_sequences=True))
 #model.add(tf.keras.layers.Conv2D(5, 1000))
-model.add(tf.keras.layers.Dense(1000, use_bias=True))
+# model.add(tf.keras.layers.Dense(1000, use_bias=True)) ##**comment in for Ben's base model
 #model.add(tf.keras.layers.Dense(100, use_bias=True))
-model.add(tf.keras.layers.Dense(y_train.shape[1], activation="leaky_relu", use_bias=True))
-model.add(tf.keras.layers.Dropout(0.3))
+# model.add(tf.keras.layers.Dense(y_train.shape[1], activation="leaky_relu", use_bias=True)) ##**comment in for Ben's base model
+# model.add(tf.keras.layers.Dropout(0.2)) ##**comment in for Ben's base model
+
+# RNN using LSTM:
+model.add(tf.keras.layers.LSTM(units=128, input_shape=(X_train.shape[1], 1)))
+model.add(tf.keras.layers.Dense(1, activation='linear')) #also try with sigmoid activation here
 
 
 # Compile the model
 model.compile(optimizer='adam', loss='mean_squared_error')
 
+# Reshape the audio data for LSTM input
+X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+
 # Train the model
-model.fit(X_train, y_train, epochs=3, verbose=2)
+model.fit(X_train, X_train, epochs=10, batch_size=32, shuffle=False, verbose=2)
 
-# Use the model to generate new images
-generated_image = model.predict(X_test)
+# Use the model to generate new audio
+generated_audio = model.predict(X_test)
 
-import sys
-sys.path.append('/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages')
-import numpy as np
-from pydub import AudioSegment
-import preprocessing
-import scipy.io.wavfile as wav
-#import model
-
-data = generated_image[0]
+data = generated_audio[0]
 
 rate = 44100
 scaled = np.int16(data / np.max(np.abs(data)) * 32767)
-wav.write('test2.wav', rate, scaled)
+wav.write('test3.wav', rate, scaled)
