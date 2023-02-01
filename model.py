@@ -66,25 +66,55 @@ import numpy as np
 from pydub import AudioSegment
 import scipy.io.wavfile as wav
 #import model
+from tensorflow.keras.callbacks import ProgbarLogger
+import tensorflow_hub as hub
 
-# def transformer():
-#     # Load the dataset
-#     train_data = tfds.load("accentdb", split="train[:1%]")
-#     val_data = tfds.load("accentdb", split="train[1%:1.1%]")
-#     test_data = tfds.load("accentdb", split="train[1.1%:1.2%]")
 
-#     # Load pre-trained model and tokenizer
-#     transformer_model = tf.keras.models.load_model("transformer_model")
-#     tokenizer = tfds.features.text.Tokenizer()
 
-#     # Fine-tune the model
-#     transformer_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
-#     transformer_model.fit(train_data, epochs=5)
+def transformer_train_generate():
+    # Load the dataset
+    # train_data = tfds.load("accentdb", split="train[:1%]")
+    # val_data = tfds.load("accentdb", split="train[1%:1.1%]")
+    # test_data = tfds.load("accentdb", split="train[1.1%:1.2%]")
 
-#     input_audio = preprocessing.mp3_to_numpy()[0]
+    X_train = preprocessing.mp3_to_numpy("chinese")[:-1]
+    y_train = preprocessing.mp3_to_numpy("italian")[:-1]
+    X_test = preprocessing.mp3_to_numpy("chinese")[-1]
 
-#     output_audio = transformer_model(input_audio)
-#     return output_audio
+    # Load pre-trained model and tokenizer
+    # transformer_model = tf.keras.models.load_model("transformer_model")
+
+    # Fine-tune the model
+    # transformer_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
+    # transformer_model.fit(train_data, epochs=5)
+
+    # Load the pre-trained model
+    model = tf.keras.Sequential([
+    hub.KerasLayer("https://tfhub.dev/google/tf2-preview/mobilenet_v2/feature_vector/4",
+                   input_shape=(224,224,3))])
+
+    # Compile the model
+    model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+
+    model.summary()
+
+    print(X_test.shape)
+    output_audio = model.predict(X_test)
+    print(output_audio)
+
+    # generated_audio = model.predict(X_test)
+    # print(generated_audio)
+
+    # data = generated_audio[0]
+
+    rate = 44100
+    scaled = np.int16(output_audio / np.max(np.abs(output_audio)) * 32767)
+    print(scaled)
+    wav.write('test5.wav', rate, scaled)
+
+    # return output_audio
 
 def base_train_generate():
 
@@ -128,8 +158,10 @@ def base_train_generate():
     model.add(tf.keras.layers.Dropout(0.3)) ##**comment in for Ben's base model
 
     model.compile(optimizer='adam', loss='mean_squared_error')
+    model.summary()
 
     model.fit(X_train, y_train, epochs=3, verbose=2)
+    model.save('base_weights.h5')
 
     generated_audio = model.predict(X_test)
 
@@ -142,38 +174,61 @@ def base_train_generate():
 
 def LSTM_train_generate():
 
+    # Input dimensions: (batch_size, time_steps, num_features) --> (4, 1000, X_train.shape[1])
+    # Output dimensions: (num_features,)
+
     X_train = preprocessing.mp3_to_numpy("chinese")[:-1]
+    X_train_reshaped = X_train.reshape(X_train.shape[0], 1, X_train.shape[1])
     #print("XTRAINSHAPE", X_train.shape)
     y_train = preprocessing.mp3_to_numpy("italian")[:-1]
+    y_train_reshaped = y_train.reshape(y_train.shape[0], 1, y_train.shape[1])
+    # y_train_reshaped = y_train.reshape(1000)
     X_test = preprocessing.mp3_to_numpy("chinese")[-1]
+    X_test_reshaped = X_test.reshape(1, X_test.shape[0])
     # print("XTEST", X_test.shape)
-    X_test = X_test.reshape(1, X_test.shape[0])
+    # X_test = X_test.reshape(1, X_test.shape[0])
 
     model = tf.keras.Sequential()
     # RNN using LSTM:
-    model.add(tf.keras.layers.LSTM(units=128, input_shape=(X_train.shape[1], 1)))
+    model.add(tf.keras.layers.LSTM(units=128, input_shape=(1, X_train.shape[1])))
     model.add(tf.keras.layers.Dense(1, activation='linear')) #also try with sigmoid activation here
+    # model.add(tf.keras.layers.Dropout(0.4))
 
     # Compile the model
     model.compile(optimizer='adam', loss='mean_squared_error')
 
+    model.summary()
+
     # Reshape the audio data for LSTM input
     # X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
-
     print(X_train.shape)
+    print(X_train_reshaped.shape)
     print(y_train.shape)
-    # Train the model
-    model.fit(X_train, y_train, epochs=10, batch_size=32, shuffle=False, verbose=2)
+    print(y_train_reshaped.shape)
+    
+
+    # Train the model - should it be y_train as second parameter?
+    model.fit(X_train_reshaped, y_train_reshaped, epochs=10, shuffle=False, verbose=1, callbacks=[ProgbarLogger(count_mode='steps')])
+
+    # Save weights
+    model.save('LSTM_weights.h5')
+
+    print(X_test.shape)
+    print(X_test_reshaped.shape)
 
     # Use the model to generate new audio
-    generated_audio = model.predict(X_test)
+    generated_audio = model.predict(X_test_reshaped)
+    print(generated_audio)
 
     data = generated_audio[0]
+    print(data)
 
     rate = 44100
     scaled = np.int16(data / np.max(np.abs(data)) * 32767)
+    print(scaled)
     wav.write('test3.wav', rate, scaled)
 
 if __name__ == "__main__":
     # base_train_generate()
     LSTM_train_generate()
+    # transformer_train_generate()

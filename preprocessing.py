@@ -65,7 +65,7 @@ def mp3_to_numpy(language):
             continue
 
     # creates np array of all audio files
-    audio_list = np.zeros((len(os.listdir("./data/{}/".format(language))), int(max_len / 2))) #divided by 10 here
+    audio_list = np.zeros((len(os.listdir("./data/{}/".format(language))), int(max_len / 200))) #divided by 10 here
     count = 0
     for file in os.listdir("./data/{}/".format(language)):
         try:
@@ -73,7 +73,7 @@ def mp3_to_numpy(language):
             audio_np = np.array(audio.get_array_of_samples())
         except:
             continue
-        audio_np_short = audio_np[int(len(audio_np) / 2):2*int(len(audio_np) / 2)] #added this
+        audio_np_short = audio_np[int(len(audio_np) / 2):2*int(len(audio_np) / 200)] #added this
         audio_list[count][:len(audio_np_short)] = audio_np_short #assigned to short here
         count += 1
     return audio_list
