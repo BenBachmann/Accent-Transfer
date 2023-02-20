@@ -76,6 +76,7 @@ def mp3_to_numpy(language):
         audio_np_short = audio_np[int(len(audio_np) / 2):2*int(len(audio_np) / 200)] #added this
         audio_list[count][:len(audio_np_short)] = audio_np_short #assigned to short here
         count += 1
+    print("MAXLEN", max_len)
     return audio_list
 
 def pickle_array(arr):
