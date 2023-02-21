@@ -10,6 +10,14 @@ import scipy.io.wavfile as wav
 #import model
 from tensorflow.keras.callbacks import ProgbarLogger
 import tensorflow_hub as hub
+import os
+from nturl2path import url2pathname
+import requests
+from bs4 import BeautifulSoup
+from pydub import AudioSegment
+import numpy as np
+import pydub.exceptions
+import pickle
 # import tfm.nlp.layers
 
 # class PositionalEmbedding(tf.keras.layers.Layer):
@@ -114,7 +122,7 @@ class DecoderLayer(tf.keras.layers.Layer):
     self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
 
     #Here we are calling the encoder to get its outputs for the cross attention:
-    self.encoder = EncoderLayer(9322, batch_size) # NOTE: should have separate variable for sequence len of EncoderLayer accent
+    # self.encoder = EncoderLayer(9322, batch_size) # NOTE: should have separate variable for sequence len of EncoderLayer accent
 
     self.cross_attention = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
 
@@ -158,7 +166,7 @@ class Encoder(tf.keras.layers.Layer):
     self.num_layers = num_layers
 
     self.enc_layers = [
-        EncoderLayer(sequence_length=9322, batch_size=4)
+        EncoderLayer(sequence_length=9322, batch_size=34)
         for _ in range(num_layers)]
 
   def call(self, x):
@@ -176,21 +184,21 @@ class Decoder(tf.keras.layers.Layer):
     self.num_layers = num_layers
 
     self.dec_layers = [
-        DecoderLayer(sequence_length=11114, batch_size=4)
+        DecoderLayer(sequence_length=11114, batch_size=34)
         for _ in range(num_layers)]
 
-  def call(self, x):
+  def call(self, x, context):
     # `x` is shape: (batch, seq_len, 1)
 
     for i in range(self.num_layers):
-      x = self.dec_layers[i](x)
+      x = self.dec_layers[i](x, context)
 
     return x
   
 
 # NEXT STEPS:
 # 1) Create a class which stacks up encoder and decoder blocks into a full transformer - check
-# 2) Adjust the model so that you can specify batch size and num_layers, and adjust the layer shapes accordingly (create Encoder and Decoder classes)
+# 2) Adjust the model so that you can specify batch size and num_layers, and adjust the layer shapes accordingly (create Encoder and Decoder classes) - check
 # 3) Train a simple model
 # 4) Improve the model- add in positional encoding
 
@@ -198,23 +206,26 @@ class Decoder(tf.keras.layers.Layer):
 class Transformer(tf.keras.Model):
   def __init__(self, num_layers):
     super().__init__()
-    self.encoder = EncoderLayer()
-
-    self.decoder = DecoderLayer()
-
-    self.final_flatten = tf.keras.layers.Flatten(input_shape=(11114, 1)) # input_shape=(sequence_length, batch_size)
-    self.final_dense = tf.keras.layers.Dense(units=11114, activation='softmax') # (units = sequence_length * batch_size)
-    self.final_reshape = tf.keras.layers.Reshape((11114, 1)) # final_shape=(sequence_length, batch_size)
 
     self.num_layers = num_layers
 
-  def call(self, chinese, italian):
+    self.encoder = Encoder(num_layers=self.num_layers)
+
+    self.decoder = Decoder(num_layers=self.num_layers)
+
+    self.final_flatten = tf.keras.layers.Flatten(input_shape=(34, 11114, 1))
+    self.final_dense = tf.keras.layers.Dense(units=11114, activation='softmax') # (units = sequence_length * batch_size)
+    self.final_reshape = tf.keras.layers.Reshape((11114, 1))
+
+    
+
+  def call(self, inputs): # inputs is an array of tuples of (chinese, italian)
     # To use a Keras model with `.fit` you must pass all your inputs in the
     # first argument.
 
-    context = self.encoder(chinese)  # (batch_size, context_len, d_model)
+    context = self.encoder(inputs[0])  # (batch_size, context_len, d_model)
 
-    decoded = self.decoder(italian, context)  # (batch_size, target_len, d_model)
+    decoded = self.decoder(inputs[1], context)  # (batch_size, target_len, d_model)
 
     final_flattened = self.final_flatten(decoded)
     final_densed = self.final_dense(final_flattened)
@@ -225,14 +236,32 @@ class Transformer(tf.keras.Model):
 
 
 if __name__ == "__main__":
-  encoder_layer = EncoderLayer(9322, 4)
-  random_chinese = np.random.rand(4, 9322, 1) #(batch_size=how many samples we're dealing with at once, sequence_length=9322 in this example, hidden_size=(for RGB for example, it would be 3))- MultiHeadAttention expects this
-  context = encoder_layer(random_chinese)
-  print(encoder_layer(random_chinese))
+  # encoder_layer = EncoderLayer(9322, 4)
+  # random_chinese = np.random.rand(4, 9322, 1) #(batch_size=how many samples we're dealing with at once, sequence_length=9322 in this example, hidden_size=(for RGB for example, it would be 3))- MultiHeadAttention expects this
+  # context = encoder_layer(random_chinese)
+  # print(encoder_layer(random_chinese))
 
-  decoder_layer = DecoderLayer(11114, 4)
-  random_italian = np.random.rand(4, 11114, 1)
-  print(decoder_layer(random_italian, context))
+  # decoder_layer = DecoderLayer(11114, 4)
+  # random_italian = np.random.rand(4, 11114, 1)
+  # print(decoder_layer(random_italian, context))
+
+  # random_chinese = np.random.rand(4, 9322, 1)
+  # random_italian = np.random.rand(4, 11114, 1)
+  # transformer = Transformer(num_layers=3)
+  # output = transformer(random_chinese, random_italian)
+  # print(output)
+
+
+  X = preprocessing.unpickle_file("./chinese.pickle")
+  Y = preprocessing.unpickle_file("./italian.pickle")
+  X_padded = tf.keras.preprocessing.sequence.pad_sequences(X, maxlen=11114, padding='post', value=0, dtype='float32')
+  input_data = (X_padded, Y)
+  model = Transformer(num_layers=3)
+  model.compile(optimizer='adam', loss='categorical_crossentropy')
+  model.fit(input_data)
+  model.save_weights('./transformer_weights_v1.h5')
+
+
 
 
   
