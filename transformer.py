@@ -58,7 +58,7 @@ class EncoderLayer(tf.keras.layers.Layer):
     self.mha = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64) # We are kind of guessing with this 64, can do 512 for more complex
 
     self.add1 = tf.keras.layers.Add()
-    self.norm1 = tf.keras.layers.LayerNormalization()
+    self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
 
     self.flatten = tf.keras.layers.Flatten(input_shape=(9322, 1))
 
@@ -68,31 +68,115 @@ class EncoderLayer(tf.keras.layers.Layer):
     self.reshape = tf.keras.layers.Reshape((9322, 1))
 
     self.add2 = tf.keras.layers.Add()
-    self.norm2 = tf.keras.layers.LayerNormalization()
+    self.norm2 = tf.keras.layers.LayerNormalization(axis=1)
 
 
   def call(self, x):
-    # encoded = self.pos_encoding(x)
+    # encoded = self.pos_encoding(x) # *** NOTE: We left out the positional encoding *** might need to add ***
     attentioned = self.mha(x, x)
     added1 = self.add1([attentioned, x])
     normed1 = self.norm1(added1)
-    print("normed1", normed1.shape)
     flattened = self.flatten(normed1)
-    print("flattened", flattened.shape)
     densed = self.dense1(flattened)
-    print("densed", densed.shape)
     reshaped = self.reshape(densed)
-    print("reshaped", reshaped.shape)
-    added2 = self.add1([reshaped, x])
-    print(added2.shape)
-    normed2 = self.norm1(added2)
-    print(normed2.shape)
+    added2 = self.add2([reshaped, x])
+    normed2 = self.norm2(added2)
+    # print(normed2)
+    # print(normed2.shape)
+    # print("N2segment", normed2[0][2000:2100])
+    # print("N2full", normed2)
     return normed2
+
+
+class DecoderLayer(tf.keras.layers.Layer):
+#   def __init__(self,*, d_model, num_heads, dff, dropout_rate=0.1):
+  def __init__(self):
+    super().__init__()
+
+    # DECODING SIDE - ITALIAN
+    # 1. Positional encoding of Italian shifted right one step
+    # 2. Masked Multi-Head Attention
+    # 3. Add() and LayerNormalization()
+    # 4. Cross Attention
+    # 5. Add() and LayerNormalization()
+    # 6. Feed Forward Layer
+    # 7. Add() and LayerNormalization()
+    # 8. Linear
+    # 9. Softmax
+
+    # *** NOTE: We are not going to shift the input for now since the time steps are very small ***
+    # NOTE: We also left out the positional encoding here
+    self.mask = tf.keras.layers.Masking(mask_value=0.0)
+    self.mha = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
+
+    self.add1 = tf.keras.layers.Add()
+    self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
+
+    #Here we are calling the encoder to get its outputs for the cross attention:
+    self.encoder = EncoderLayer()
+
+    self.cross_attention = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
+
+    self.flatten = tf.keras.layers.Flatten(input_shape=(11114, 1)) # len=11114 is # of timesteps in one sample of Italian
+
+    self.dense1 = tf.keras.layers.Dense(units=11114, activation='relu')
+    # might need more dense and possibly a dropout- just make a sequential
+
+    self.reshape = tf.keras.layers.Reshape((11114, 1))
+
+    self.add2 = tf.keras.layers.Add()
+    self.norm2 = tf.keras.layers.LayerNormalization(axis=1)
+    
+    self.flatten2 = tf.keras.layers.Flatten(input_shape=(11114, 1))
+    self.dense2 = tf.keras.layers.Dense(units=11114, activation='softmax')
+    self.reshape2 = tf.keras.layers.Reshape((11114, 1))
+
+
+  def call(self, x, context): #need context here from encoder - more specifically, context is one Chinese sample with context taken into account retrieved from encoder
+    # encoded = self.pos_encoding(x)
+    masked = self.mask(x)
+    masked_attentioned = self.mha(masked, masked)
+    added1 = self.add1([masked_attentioned, masked])
+    normed1 = self.norm1(added1)
+    cross_attentioned = self.cross_attention(normed1, context)
+    # print("normed1", normed1.shape)
+    flattened1= self.flatten(cross_attentioned)
+    # print("flattened", flattened.shape)
+    densed1 = self.dense1(flattened1)
+    # print("densed", densed.shape)
+    reshaped = self.reshape(densed1)
+    # print("reshaped", reshaped.shape)
+    added2 = self.add2([reshaped, masked]) # Not sure if it is masked or x here
+    # print(added2.shape)
+    normed2 = self.norm2(added2)
+    # print(normed2.shape)
+    flattened2 = self.flatten2(normed2)
+    densed2 = self.dense2(flattened2)
+    reshaped2 = self.reshape2(densed2)
+    # print(reshaped2[2200:2300])
+
+    return reshaped2
+  
+
+# NEXT STEPS:
+# 1) Create a class which stacks up encoder and decoder blocks into a full transformer
+# 2) Adjust the model so that you can specify batch size, and adjust the layer shapes accordingly
+# 3) Train a simple model
+# 4) Improve the model
+
+
 
 if __name__ == "__main__":
   encoder_layer = EncoderLayer()
-  random_array = np.random.rand(1, 9322, 1) #(batch_size=how many samples we're dealing with at once, sequence_length=9322 in this example, hidden_size=(for RGB for example, it would be 3))- MultiHeadAttention expects this
-  print(encoder_layer(random_array))
+  random_chinese = np.random.rand(1, 9322, 1) #(batch_size=how many samples we're dealing with at once, sequence_length=9322 in this example, hidden_size=(for RGB for example, it would be 3))- MultiHeadAttention expects this
+  # print("RANDCHINSEG", random_chinese[0][2000:2100])
+  # print("RANDCHINFULLL", random_chinese)
+  context = encoder_layer(random_chinese)
+  # print(encoder_layer(random_chinese))
+
+  decoder_layer = DecoderLayer()
+  random_italian = np.random.rand(1, 11114, 1)
+  print(decoder_layer(random_italian, context))
 
   
 # class Encoder(tf.keras.layers.Layer):

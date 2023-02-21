@@ -81,12 +81,12 @@ def mp3_to_numpy(language):
 
 def pickle_array(arr):
     # Open a file for writing in binary mode
-    with open("./chinese.pickle", "wb") as f:
+    with open("./italian.pickle", "wb") as f:
         # Pickle the array and write it to the file
         pickle.dump(arr, f)
 
     # Open a file for reading in binary mode
-    with open("./chinese.pickle", "rb") as f:
+    with open("./italian.pickle", "rb") as f:
         # Load the pickled array from the file
         loaded_arr = pickle.load(f)
 
@@ -96,4 +96,4 @@ def pickle_array(arr):
 
 if __name__ == "__main__":
     #pickle_array(scrape_mp3())
-    pickle_array(mp3_to_numpy("chinese"))
+    pickle_array(mp3_to_numpy("italian"))
