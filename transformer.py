@@ -39,7 +39,7 @@ import tensorflow_hub as hub
   
 class EncoderLayer(tf.keras.layers.Layer):
 #   def __init__(self,*, d_model, num_heads, dff, dropout_rate=0.1):
-  def __init__(self): #will probably have to add batch_size param to take a bunch of Chinese examples to train instead of just one
+  def __init__(self, sequence_length, batch_size): #will probably have to add batch_size param to take a bunch of Chinese examples to train instead of just one
     super().__init__()
 
     # self.self_attention = GlobalSelfAttention(
@@ -60,12 +60,12 @@ class EncoderLayer(tf.keras.layers.Layer):
     self.add1 = tf.keras.layers.Add()
     self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
 
-    self.flatten = tf.keras.layers.Flatten(input_shape=(9322, 1))
+    self.flatten = tf.keras.layers.Flatten(input_shape=(batch_size, sequence_length, 1))
 
-    self.dense1 = tf.keras.layers.Dense(units=9322, activation='relu')
+    self.dense1 = tf.keras.layers.Dense(units=sequence_length, activation='relu')
     # might need more dense and possibly a dropout- just make a sequential
 
-    self.reshape = tf.keras.layers.Reshape((9322, 1))
+    self.reshape = tf.keras.layers.Reshape((sequence_length, 1))
 
     self.add2 = tf.keras.layers.Add()
     self.norm2 = tf.keras.layers.LayerNormalization(axis=1)
@@ -78,6 +78,7 @@ class EncoderLayer(tf.keras.layers.Layer):
     normed1 = self.norm1(added1)
     flattened = self.flatten(normed1)
     densed = self.dense1(flattened)
+    # print("DENSESHAPE", densed.shape)
     reshaped = self.reshape(densed)
     added2 = self.add2([reshaped, x])
     normed2 = self.norm2(added2)
@@ -90,7 +91,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 class DecoderLayer(tf.keras.layers.Layer):
 #   def __init__(self,*, d_model, num_heads, dff, dropout_rate=0.1):
-  def __init__(self):
+  def __init__(self, sequence_length, batch_size):
     super().__init__()
 
     # DECODING SIDE - ITALIAN
@@ -113,23 +114,19 @@ class DecoderLayer(tf.keras.layers.Layer):
     self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
 
     #Here we are calling the encoder to get its outputs for the cross attention:
-    self.encoder = EncoderLayer()
+    self.encoder = EncoderLayer(9322, batch_size) # NOTE: should have separate variable for sequence len of EncoderLayer accent
 
     self.cross_attention = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
 
-    self.flatten = tf.keras.layers.Flatten(input_shape=(11114, 1)) # len=11114 is # of timesteps in one sample of Italian
+    self.flatten = tf.keras.layers.Flatten(input_shape=(batch_size, sequence_length, 1)) # len=11114 is # of timesteps in one sample of Italian
 
-    self.dense1 = tf.keras.layers.Dense(units=11114, activation='relu')
+    self.dense1 = tf.keras.layers.Dense(units=sequence_length, activation='relu')
     # might need more dense and possibly a dropout- just make a sequential
 
-    self.reshape = tf.keras.layers.Reshape((11114, 1))
+    self.reshape = tf.keras.layers.Reshape((sequence_length, 1))
 
     self.add2 = tf.keras.layers.Add()
     self.norm2 = tf.keras.layers.LayerNormalization(axis=1)
-    
-    self.flatten2 = tf.keras.layers.Flatten(input_shape=(11114, 1))
-    self.dense2 = tf.keras.layers.Dense(units=11114, activation='softmax')
-    self.reshape2 = tf.keras.layers.Reshape((11114, 1))
 
 
   def call(self, x, context): #need context here from encoder - more specifically, context is one Chinese sample with context taken into account retrieved from encoder
@@ -150,33 +147,93 @@ class DecoderLayer(tf.keras.layers.Layer):
     # print(added2.shape)
     normed2 = self.norm2(added2)
     # print(normed2.shape)
-    flattened2 = self.flatten2(normed2)
-    densed2 = self.dense2(flattened2)
-    reshaped2 = self.reshape2(densed2)
     # print(reshaped2[2200:2300])
 
-    return reshaped2
+    return normed2
+
+class Encoder(tf.keras.layers.Layer):
+  def __init__(self, num_layers):
+    super().__init__()
+
+    self.num_layers = num_layers
+
+    self.enc_layers = [
+        EncoderLayer(sequence_length=9322, batch_size=4)
+        for _ in range(num_layers)]
+
+  def call(self, x):
+    # `x` is shape: (batch, seq_len, 1)
+
+    for i in range(self.num_layers):
+      x = self.enc_layers[i](x)
+
+    return x
+
+class Decoder(tf.keras.layers.Layer):
+  def __init__(self, num_layers):
+    super().__init__()
+
+    self.num_layers = num_layers
+
+    self.dec_layers = [
+        DecoderLayer(sequence_length=11114, batch_size=4)
+        for _ in range(num_layers)]
+
+  def call(self, x):
+    # `x` is shape: (batch, seq_len, 1)
+
+    for i in range(self.num_layers):
+      x = self.dec_layers[i](x)
+
+    return x
   
 
 # NEXT STEPS:
-# 1) Create a class which stacks up encoder and decoder blocks into a full transformer
-# 2) Adjust the model so that you can specify batch size, and adjust the layer shapes accordingly
+# 1) Create a class which stacks up encoder and decoder blocks into a full transformer - check
+# 2) Adjust the model so that you can specify batch size and num_layers, and adjust the layer shapes accordingly (create Encoder and Decoder classes)
 # 3) Train a simple model
-# 4) Improve the model
+# 4) Improve the model- add in positional encoding
 
+
+class Transformer(tf.keras.Model):
+  def __init__(self, num_layers):
+    super().__init__()
+    self.encoder = EncoderLayer()
+
+    self.decoder = DecoderLayer()
+
+    self.final_flatten = tf.keras.layers.Flatten(input_shape=(11114, 1)) # input_shape=(sequence_length, batch_size)
+    self.final_dense = tf.keras.layers.Dense(units=11114, activation='softmax') # (units = sequence_length * batch_size)
+    self.final_reshape = tf.keras.layers.Reshape((11114, 1)) # final_shape=(sequence_length, batch_size)
+
+    self.num_layers = num_layers
+
+  def call(self, chinese, italian):
+    # To use a Keras model with `.fit` you must pass all your inputs in the
+    # first argument.
+
+    context = self.encoder(chinese)  # (batch_size, context_len, d_model)
+
+    decoded = self.decoder(italian, context)  # (batch_size, target_len, d_model)
+
+    final_flattened = self.final_flatten(decoded)
+    final_densed = self.final_dense(final_flattened)
+    final_reshaped = self.final_reshape(final_densed)
+    
+    # Return the final output and the attention weights.
+    return final_reshaped
 
 
 if __name__ == "__main__":
-  encoder_layer = EncoderLayer()
-  random_chinese = np.random.rand(1, 9322, 1) #(batch_size=how many samples we're dealing with at once, sequence_length=9322 in this example, hidden_size=(for RGB for example, it would be 3))- MultiHeadAttention expects this
-  # print("RANDCHINSEG", random_chinese[0][2000:2100])
-  # print("RANDCHINFULLL", random_chinese)
+  encoder_layer = EncoderLayer(9322, 4)
+  random_chinese = np.random.rand(4, 9322, 1) #(batch_size=how many samples we're dealing with at once, sequence_length=9322 in this example, hidden_size=(for RGB for example, it would be 3))- MultiHeadAttention expects this
   context = encoder_layer(random_chinese)
-  # print(encoder_layer(random_chinese))
+  print(encoder_layer(random_chinese))
 
-  decoder_layer = DecoderLayer()
-  random_italian = np.random.rand(1, 11114, 1)
+  decoder_layer = DecoderLayer(11114, 4)
+  random_italian = np.random.rand(4, 11114, 1)
   print(decoder_layer(random_italian, context))
+
 
   
 # class Encoder(tf.keras.layers.Layer):
