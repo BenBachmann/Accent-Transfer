@@ -81,7 +81,10 @@ class EncoderLayer(tf.keras.layers.Layer):
 
   def call(self, x):
     # encoded = self.pos_encoding(x) # *** NOTE: We left out the positional encoding *** might need to add ***
+    print(x[0])
     attentioned = self.mha(x, x)
+    # print(attentioned)
+    # print(attentioned.shape)
     added1 = self.add1([attentioned, x])
     normed1 = self.norm1(added1)
     flattened = self.flatten(normed1)
@@ -253,9 +256,23 @@ if __name__ == "__main__":
 
 
   X = preprocessing.unpickle_file("./chinese.pickle")
+  # print(X[0][2100:2200])
+
+
   Y = preprocessing.unpickle_file("./italian.pickle")
+  # print(Y[0][2100:2200])
+
   X_padded = tf.keras.preprocessing.sequence.pad_sequences(X, maxlen=11114, padding='post', value=0, dtype='float32')
-  input_data = (X_padded, Y)
+  # print(X[0][2100:2200])
+  # print(X.shape)
+  # print(Y[0][3000:3100])
+  # print(Y.shape)
+  # print(X_padded[0][3000:3100])
+  # print(X_padded.shape)
+  input_data = tuple(zip(X_padded, Y))
+  # print(input_data[0][1])
+  # print(len(input_data[0][1]))
+  # print(input_data.shape)
   model = Transformer(num_layers=3)
   model.compile(optimizer='adam', loss='categorical_crossentropy')
   model.fit(input_data)
