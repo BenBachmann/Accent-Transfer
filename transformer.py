@@ -33,6 +33,7 @@ import pickle
 # model.fit takes in these parameters: (x, y, batch_size, epochs, validation_split,*kwargs)
   # shape of x: (num_samples, input_dim)
   # shape of y: (num_samples, output_dim)
+  # batch_size MUST BE DIVISIBLE by the total number of batches passed into fit
 
 # Hyperparameters
 #BATCH_SIZE = 6
@@ -64,7 +65,7 @@ import pickle
   
 class EncoderLayer(tf.keras.layers.Layer):
 #   def __init__(self,*, d_model, num_heads, dff, dropout_rate=0.1):
-  def __init__(self, sequence_length, batch_size): #will probably have to add batch_size param to take a bunch of Chinese examples to train instead of just one
+  def __init__(self, sequence_length): #will probably have to add batch_size param to take a bunch of Chinese examples to train instead of just one
     super().__init__()
 
     # self.self_attention = GlobalSelfAttention(
@@ -80,14 +81,13 @@ class EncoderLayer(tf.keras.layers.Layer):
     # self.pos_encoding = tf.keras.layers.Embedding(input_dim=9322, output_dim=9322)
     # self.pos_encoding = tf.keras.layers.Embedding(input_dim=100, output_dim=1, input_length=9322, mask_zero=True)
 
-    self.batch_size = batch_size
 
     self.mha = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64) # We are kind of guessing with this 64, can do 512 for more complex
 
     self.add1 = tf.keras.layers.Add()
     self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
 
-    self.flatten = tf.keras.layers.Flatten(input_shape=(self.batch_size, sequence_length, 1))
+    self.flatten = tf.keras.layers.Flatten(input_shape=(2, sequence_length, 1))
 
     self.dense1 = tf.keras.layers.Dense(units=sequence_length, activation='relu')
     # might need more dense and possibly a dropout- just make a sequential
@@ -100,7 +100,10 @@ class EncoderLayer(tf.keras.layers.Layer):
 
   def call(self, x):
     # encoded = self.pos_encoding(x) # *** NOTE: We left out the positional encoding *** might need to add ***
-    attentioned = self.mha(x, x)
+    # print(x.shape)
+    # print("x", x)
+
+    attentioned = self.mha(x, x) # takes in (batch_size, sequence_length, embedding_dim)
     # print(attentioned)
     # print(attentioned.shape)
     added1 = self.add1([attentioned, x])
@@ -120,7 +123,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 class DecoderLayer(tf.keras.layers.Layer):
 #   def __init__(self,*, d_model, num_heads, dff, dropout_rate=0.1):
-  def __init__(self, sequence_length, batch_size):
+  def __init__(self, sequence_length):
     super().__init__()
 
     # DECODING SIDE - ITALIAN
@@ -136,7 +139,6 @@ class DecoderLayer(tf.keras.layers.Layer):
 
     # *** NOTE: We are not going to shift the input for now since the time steps are very small ***
     # NOTE: We also left out the positional encoding here
-    self.batch_size = batch_size
     self.mask = tf.keras.layers.Masking(mask_value=0.0)
     self.mha = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
 
@@ -148,7 +150,7 @@ class DecoderLayer(tf.keras.layers.Layer):
 
     self.cross_attention = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
 
-    self.flatten = tf.keras.layers.Flatten(input_shape=(self.batch_size, sequence_length, 1)) # len=11114 is # of timesteps in one sample of Italian
+    self.flatten = tf.keras.layers.Flatten(input_shape=(2, sequence_length, 1)) # len=11114 is # of timesteps in one sample of Italian
 
     self.dense1 = tf.keras.layers.Dense(units=sequence_length, activation='relu')
     # might need more dense and possibly a dropout- just make a sequential
@@ -182,14 +184,13 @@ class DecoderLayer(tf.keras.layers.Layer):
     return normed2
 
 class Encoder(tf.keras.layers.Layer):
-  def __init__(self, num_layers, batch_size):
+  def __init__(self, num_layers):
     super().__init__()
 
     self.num_layers = num_layers
-    self.batch_size = batch_size
 
     self.enc_layers = [
-        EncoderLayer(sequence_length=9322, batch_size=self.batch_size) # 34
+        EncoderLayer(sequence_length=11114) 
         for _ in range(self.num_layers)]
 
   def call(self, x):
@@ -197,20 +198,20 @@ class Encoder(tf.keras.layers.Layer):
     # seq_len is the length (no. timesteps) of a single WAV file
     # 1 is no. values at one timestep in the WAV file. (If dealing with RGB values, would be 3)
 
+    # print("X", x)
     for i in range(self.num_layers):
       x = self.enc_layers[i](x)
 
     return x
 
 class Decoder(tf.keras.layers.Layer):
-  def __init__(self, num_layers, batch_size):
+  def __init__(self, num_layers):
     super().__init__()
 
     self.num_layers = num_layers
-    self.batch_size = batch_size
 
     self.dec_layers = [
-        DecoderLayer(sequence_length=11114, batch_size=self.batch_size)
+        DecoderLayer(sequence_length=11114)
         for _ in range(self.num_layers)]
 
   def call(self, x, context):
@@ -230,17 +231,16 @@ class Decoder(tf.keras.layers.Layer):
 
 
 class Transformer(tf.keras.Model):
-  def __init__(self, num_layers, batch_size):
+  def __init__(self, num_layers):
     super().__init__()
 
     self.num_layers = num_layers
-    self.batch_size = batch_size
 
-    self.encoder = Encoder(num_layers=self.num_layers, batch_size=self.batch_size) # self.batch_size is ONLY specified in the transformer
+    self.encoder = Encoder(num_layers=self.num_layers)
 
-    self.decoder = Decoder(num_layers=self.num_layers, batch_size=self.batch_size)
+    self.decoder = Decoder(num_layers=self.num_layers)
 
-    self.final_flatten = tf.keras.layers.Flatten(input_shape=(self.batch_size, 11114, 1))
+    self.final_flatten = tf.keras.layers.Flatten(input_shape=(2, 11114, 1))
     self.final_dense = tf.keras.layers.Dense(units=11114, activation='softmax') # (units = sequence_length * batch_size)
     self.final_reshape = tf.keras.layers.Reshape((11114, 1))
 
@@ -250,12 +250,16 @@ class Transformer(tf.keras.Model):
     # To use a Keras model with `.fit` you must pass all your inputs in the
     # first argument.
 
-    # print("Chinese shape",inputs[0].shape)
+    # print("INP", inputs)
+    # THE ERROR: inputs is (<tf.Tensor 'IteratorGetNext:0' shape=(2, 11114, 1) dtype=float32>, <tf.Tensor 'IteratorGetNext:1' shape=(2, 11114, 1) dtype=float32>)
+
+
+    # print("Chinese shape",inputs.shape)
     # print("Chinese sample", inputs[0][2100:2200])
-    context = self.encoder(inputs[0])  # (batch_size, context_len, d_model)
+    context = self.encoder(inputs)  # (batch_size, context_len, d_model)
     # 0 is because inputs should be a tuple, with the source language at index 0 and target language at index 1
 
-    decoded = self.decoder(inputs[1], context)  # (batch_size, target_len, d_model)
+    decoded = self.decoder(inputs, context)  # (batch_size, target_len, d_model)
 
     final_flattened = self.final_flatten(decoded)
     final_densed = self.final_dense(final_flattened)
@@ -268,16 +272,22 @@ class Transformer(tf.keras.Model):
 if __name__ == "__main__":
   X = preprocessing.unpickle_file("./chinese.pickle")
   Y = preprocessing.unpickle_file("./italian.pickle")
-  model = Transformer(num_layers=3, batch_size=6)
+  X = tf.keras.preprocessing.sequence.pad_sequences(X, maxlen=11114, padding='post', value=0, dtype='float32')
+  X = np.expand_dims(X, axis=-1)
+  Y = np.expand_dims(Y, axis=-1)
+  # print("X", X)
+
+  model = Transformer(num_layers=3)
   model.compile(optimizer='adam', loss='categorical_crossentropy')
 
   # model.fit takes in these parameters: (x, y, batch_size, epochs, validation_split,*kwargs)
   # shape of x: (num_samples, source_sequence_length) = (34, 9322)
   ### input_dim is the DIMENSIONALITY of the data, NOT the number of timesteps in the WAV file.
   # shape of y: (num_samples, target_sequence_length) = (34, 11114)
-  batch_size = 6
-  epochs = 2
-  model.fit(X, Y, batch_size, epochs)
+  
+  # model(X, Y)
+
+  model.fit(X, Y, batch_size=2, epochs=2)
   model.save_weights('./transformer_weights_v1.h5')
 
 
