@@ -92,14 +92,15 @@ def pickle_array(arr):
         # Load the pickled array from the file
         loaded_arr = pickle.load(f)
 
-    print(loaded_arr)
-    print(loaded_arr.shape)
+    # print(loaded_arr)
+    # print(loaded_arr.shape)
 
 def unpickle_file(file):
     with open(file, "rb") as f:
         loaded_arr = pickle.load(f)
-    print(loaded_arr)
+    # print(loaded_arr)
     return loaded_arr
+
 
 if __name__ == "__main__":
     #pickle_array(scrape_mp3())
