@@ -56,7 +56,7 @@ def mp3_to_numpy(language, divisor, num_samples):
     # finds max length of all numpy representations of mp3s
     max_len = 0
     for i, file in enumerate(os.listdir("./data/{}/".format(language))):
-        if i < 9:
+        if i < num_samples:
             try:
                 audio = AudioSegment.from_mp3("./data/{}/".format(language) + file)
                 audio_np = np.array(audio.get_array_of_samples())
@@ -69,7 +69,7 @@ def mp3_to_numpy(language, divisor, num_samples):
     audio_list = np.zeros((len(os.listdir("./data/{}/".format(language))), int(max_len / divisor))) #divided by 10 here
     count = 0
     for i, file in enumerate(os.listdir("./data/{}/".format(language))):
-        if i < 9:
+        if i < num_samples:
             try:
                 audio = AudioSegment.from_mp3("./data/{}/".format(language) + file)
                 audio_np = np.array(audio.get_array_of_samples())

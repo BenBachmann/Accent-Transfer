@@ -269,26 +269,83 @@ class Transformer(tf.keras.Model):
     return final_reshaped
 
 
-if __name__ == "__main__":
-  X = preprocessing.unpickle_file("./chinese.pickle")
-  Y = preprocessing.unpickle_file("./italian.pickle")
-  X = tf.keras.preprocessing.sequence.pad_sequences(X, maxlen=11114, padding='post', value=0, dtype='float32')
+
+# HYPERPARAMETERS
+NUM_LAYERS = 3
+NUM_EPOCHS = 2
+BATCH_SIZE = 10 # note: may need to change this to be a divisor of num_samples
+# LEARNING_RATE = 0.1 add this and more necessary hyperparameters
+
+def pipeline(source_language, target_language, num_samples, divisor, TRAIN, wav_outfile, weights_file='./transformer_weights_v2.h5'):
+
+  # generates an array of batch_size samples
+  # Trains if TRAIN
+  # calls model.predict + generates WAV
+
+  # NOTES
+  # Function only makes 1 prediction. Therefore, if TRAIN, model trains num_samples - 1
+  # Need to be careful with source & target language- this depends on what the folders are named.
+  # num_samples must be less than or equal to the number of files in the folder
+  source_data, max_source_len = preprocessing.mp3_to_numpy(source_language, divisor, num_samples)
+  target_data, max_target_len = preprocessing.mp3_to_numpy(target_language, divisor, num_samples)
+  X = tf.keras.preprocessing.sequence.pad_sequences(source_data, maxlen=max_source_len, padding='post', value=0, dtype='float32')
+  Y = tf.keras.preprocessing.sequence.pad_sequences(target_data, maxlen=max_target_len, padding='post', value=0, dtype='float32')
   X = np.expand_dims(X, axis=-1)
   Y = np.expand_dims(Y, axis=-1)
-  # print("X", X)
+  X_TRAIN, X_TEST = X[:-1], X[-1]
+  Y_TRAIN = Y[:-1]
 
-  model = Transformer(num_layers=3)
-  model.compile(optimizer='adam', loss='categorical_crossentropy')
+  if TRAIN:
+    model = Transformer(num_layers=NUM_LAYERS)
+    model.compile(optimizer='adam', loss='categorical_crossentropy')
+    model.fit(X_TRAIN, Y_TRAIN, batch_size=BATCH_SIZE, epochs=NUM_EPOCHS)
+    model.save_weights('./transformer_weights_v2.h5')
 
-  # model.fit takes in these parameters: (x, y, batch_size, epochs, validation_split,*kwargs)
-  # shape of x: (num_samples, source_sequence_length) = (34, 9322)
-  ### input_dim is the DIMENSIONALITY of the data, NOT the number of timesteps in the WAV file.
-  # shape of y: (num_samples, target_sequence_length) = (34, 11114)
+  if TRAIN:
+    weights_file = './transformer_weights_v2.h5'
+  else:
+    weights_file = weights_file
+
+  test_model = Transformer(num_layers=NUM_LAYERS)
+  test_model.build(input_shape=(2, max_source_len, 1)) # unsure what first dimension should be
+  test_model.load_weights(weights_file)
+  # weights = test_model.get_weights()
+  test_model.get_weights()
+  # X_TEST = np.expand_dims(X_TEST, axis=-1)
+  # X_TEST = np.expand_dims(X_TEST, axis=0)
+
+  output_data = test_model.predict(X_TEST, batch_size=1)
+  output_data = np.squeeze(output_data)
+
+  rate = 44100
+  scaled = np.int16(output_data / np.max(np.abs(output_data)) * 32767)
+  # print("SCALED", scaled.shape)
+  wav.write(wav_outfile, rate, scaled)
   
-  # model(X, Y)
+  
 
-  model.fit(X, Y, batch_size=2, epochs=2)
-  model.save_weights('./transformer_weights_v1.h5')
+if __name__ == "__main__":
+  # X = preprocessing.unpickle_file("./chinese.pickle")
+  # Y = preprocessing.unpickle_file("./italian.pickle")
+  # X = tf.keras.preprocessing.sequence.pad_sequences(X, maxlen=11114, padding='post', value=0, dtype='float32')
+  # X = np.expand_dims(X, axis=-1)
+  # Y = np.expand_dims(Y, axis=-1)
+  # # print("X", X)
+
+  # model = Transformer(num_layers=3)
+  # model.compile(optimizer='adam', loss='categorical_crossentropy')
+
+  # # model.fit takes in these parameters: (x, y, batch_size, epochs, validation_split,*kwargs)
+  # # shape of x: (num_samples, source_sequence_length) = (34, 9322)
+  # ### input_dim is the DIMENSIONALITY of the data, NOT the number of timesteps in the WAV file.
+  # # shape of y: (num_samples, target_sequence_length) = (34, 11114)
+  
+  # # model(X, Y)
+
+  # model.fit(X, Y, batch_size=2, epochs=2)
+  # model.save_weights('./transformer_weights_v1.h5')
+
+  pipeline("chinese", "italian", 16, 10000, False, 'transformer_outputs_1.wav')
 
 
 
