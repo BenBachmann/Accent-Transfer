@@ -11,25 +11,36 @@ import tensorflow as tf
 #data = preprocessing.mp3_to_numpy()[0][0]
 # data = model.transformer()
 
-test_model = transformer.Transformer(num_layers=3)
-print("A")
-test_model.build(input_shape=(2, 11114, 1))
-print("B")
-test_model.load_weights('transformer_weights_v1.h5')
-print("C")
-weights = test_model.get_weights()
-print("D")
 
-all_data = preprocessing.unpickle_file("./chinese.pickle")
-print("E")
+all_data, max_len = preprocessing.mp3_to_numpy("chinese", 10)
+
+all_data = tf.keras.preprocessing.sequence.pad_sequences(all_data, maxlen=max_len, padding='post', value=0, dtype='float32')
+
+test_model = transformer.Transformer(num_layers=3)
+test_model.build(input_shape=(2, max_len, 1)) # build calls the model.
+# print("A")
+test_model.load_weights('transformer_weights_v1.h5')
+# print("B")
+weights = test_model.get_weights()
+# print("C")
+
+
 
 input_data = all_data[18]
+input_data = np.expand_dims(input_data, axis=-1)
 input_data = np.expand_dims(input_data, axis=0)
 print("F")
-output_data = test_model.predict(input_data)
+# correct up to here.
+# input_data has shape (1, 11114, 1)
+
+# error: model.predict sets the first dimension to None
+output_data = test_model.predict(input_data, batch_size=1)
 print("G")
+output_data = np.squeeze(output_data)
+print("SHAPE", output_data.shape)
 
 
 rate = 44100
 scaled = np.int16(output_data / np.max(np.abs(output_data)) * 32767)
-wav.write('transformer1.wav', rate, scaled)
+# print("SCALED", scaled.shape)
+wav.write('transformer2.wav', rate, scaled)

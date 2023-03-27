@@ -100,7 +100,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 
   def call(self, x):
     # encoded = self.pos_encoding(x) # *** NOTE: We left out the positional encoding *** might need to add ***
-    # print(x.shape)
+    print("x shape on entering model: ", x.shape)
     # print("x", x)
 
     attentioned = self.mha(x, x) # takes in (batch_size, sequence_length, embedding_dim)
@@ -250,7 +250,7 @@ class Transformer(tf.keras.Model):
     # To use a Keras model with `.fit` you must pass all your inputs in the
     # first argument.
 
-    # print("INP", inputs)
+    print("INP", inputs)
     # THE ERROR: inputs is (<tf.Tensor 'IteratorGetNext:0' shape=(2, 11114, 1) dtype=float32>, <tf.Tensor 'IteratorGetNext:1' shape=(2, 11114, 1) dtype=float32>)
 
 
@@ -291,38 +291,4 @@ if __name__ == "__main__":
   model.save_weights('./transformer_weights_v1.h5')
 
 
-
-
-  
-# class Encoder(tf.keras.layers.Layer):
-#   def __init__(self, *, num_layers, d_model, num_heads,
-#                dff, vocab_size, dropout_rate=0.1):
-#     super().__init__()
-
-#     self.d_model = d_model
-#     self.num_layers = num_layers
-
-#     # self.pos_embedding = tfm.nlp.layers.PositionEmbedding(max_length=1864516)
-#     # inputs = tf.keras.Input((1864516, 32), dtype=tf.float32)
-#     # outputs = self.pos_embedding(inputs)
-
-#     self.enc_layers = [
-#         EncoderLayer(d_model=d_model,
-#                      num_heads=num_heads,
-#                      dff=dff,
-#                      dropout_rate=dropout_rate)
-#         for _ in range(num_layers)]
-#     self.dropout = tf.keras.layers.Dropout(dropout_rate)
-
-#   def call(self, x):
-#     # `x` is token-IDs shape: (batch, seq_len)
-#     x = self.pos_embedding(x)  # Shape `(batch_size, seq_len, d_model)`.
-
-#     # Add dropout.
-#     x = self.dropout(x)
-
-#     for i in range(self.num_layers):
-#       x = self.enc_layers[i](x)
-
-#     return x  # Shape `(batch_size, seq_len, d_model)`.
 

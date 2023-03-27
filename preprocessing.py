@@ -50,36 +50,38 @@ def scrape_mp3():
                         print("FAILURE" + str(count))
                     count +=1
 
-def mp3_to_numpy(language):
+def mp3_to_numpy(language, divisor, num_samples):
     # goes through all the mp3 files and returns a numpy array
 
     # finds max length of all numpy representations of mp3s
     max_len = 0
-    for file in os.listdir("./data/{}/".format(language)):
-        try:
-            audio = AudioSegment.from_mp3("./data/{}/".format(language) + file)
-            audio_np = np.array(audio.get_array_of_samples())
-            if len(audio_np) > max_len:
-                max_len = len(audio_np)
-        except:
-            continue
+    for i, file in enumerate(os.listdir("./data/{}/".format(language))):
+        if i < 9:
+            try:
+                audio = AudioSegment.from_mp3("./data/{}/".format(language) + file)
+                audio_np = np.array(audio.get_array_of_samples())
+                if len(audio_np) > max_len:
+                    max_len = len(audio_np)
+            except:
+                continue
 
     # creates np array of all audio files
-    audio_list = np.zeros((len(os.listdir("./data/{}/".format(language))), int(max_len / 200))) #divided by 10 here
+    audio_list = np.zeros((len(os.listdir("./data/{}/".format(language))), int(max_len / divisor))) #divided by 10 here
     count = 0
-    for file in os.listdir("./data/{}/".format(language)):
-        try:
-            audio = AudioSegment.from_mp3("./data/{}/".format(language) + file)
-            audio_np = np.array(audio.get_array_of_samples())
-        except:
-            continue
-        audio_np_short = audio_np[int(len(audio_np) / 200) : 2*int(len(audio_np) / 200)] #added this
-        # print(audio_np_short)
-        audio_list[count][:len(audio_np_short)] = audio_np_short #assigned to short here
-        count += 1
-    print("MAXLEN", max_len)
-    print(audio_list[0][100:200])
-    return audio_list
+    for i, file in enumerate(os.listdir("./data/{}/".format(language))):
+        if i < 9:
+            try:
+                audio = AudioSegment.from_mp3("./data/{}/".format(language) + file)
+                audio_np = np.array(audio.get_array_of_samples())
+            except:
+                continue
+            audio_np_short = audio_np[int(len(audio_np) / divisor) : 2*int(len(audio_np) / divisor)] #added this
+            # print(audio_np_short)
+            audio_list[count][:len(audio_np_short)] = audio_np_short #assigned to short here
+            count += 1
+        # print(audio_list[0][100:divisor])
+        return audio_list, max_len
+
 
 def pickle_array(arr):
     # Open a file for writing in binary mode
