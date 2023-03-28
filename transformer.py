@@ -101,23 +101,15 @@ class EncoderLayer(tf.keras.layers.Layer):
   def call(self, x):
     # encoded = self.pos_encoding(x) # *** NOTE: We left out the positional encoding *** might need to add ***
     print("x shape on entering model: ", x.shape)
-    # print("x", x)
 
     attentioned = self.mha(x, x) # takes in (batch_size, sequence_length, embedding_dim)
-    # print(attentioned)
-    # print(attentioned.shape)
     added1 = self.add1([attentioned, x])
     normed1 = self.norm1(added1)
     flattened = self.flatten(normed1)
     densed = self.dense1(flattened)
-    # print("DENSESHAPE", densed.shape)
     reshaped = self.reshape(densed)
     added2 = self.add2([reshaped, x])
     normed2 = self.norm2(added2)
-    # print(normed2)
-    # print(normed2.shape)
-    # print("N2segment", normed2[0][2000:2100])
-    # print("N2full", normed2)
     return normed2
 
 
@@ -145,9 +137,6 @@ class DecoderLayer(tf.keras.layers.Layer):
     self.add1 = tf.keras.layers.Add()
     self.norm1 = tf.keras.layers.LayerNormalization(axis=1)
 
-    #Here we are calling the encoder to get its outputs for the cross attention:
-    # self.encoder = EncoderLayer(9322, batch_size) # NOTE: should have separate variable for sequence len of EncoderLayer accent
-
     self.cross_attention = tf.keras.layers.MultiHeadAttention(num_heads=3, key_dim=64)
 
     self.flatten = tf.keras.layers.Flatten(input_shape=(2, sequence_length, 1)) # len=11114 is # of timesteps in one sample of Italian
@@ -161,25 +150,22 @@ class DecoderLayer(tf.keras.layers.Layer):
     self.norm2 = tf.keras.layers.LayerNormalization(axis=1)
 
 
-  def call(self, x, context): #need context here from encoder - more specifically, context is one Chinese sample with context taken into account retrieved from encoder
+  def call(self, x, context): # context is one Chinese sample with context taken into account retrieved from encoder
     # encoded = self.pos_encoding(x)
+    print(x.shape)
+    print(context.shape)
     masked = self.mask(x)
     masked_attentioned = self.mha(masked, masked)
     added1 = self.add1([masked_attentioned, masked])
     normed1 = self.norm1(added1)
     cross_attentioned = self.cross_attention(normed1, context)
-    # print("normed1", normed1.shape)
     flattened1= self.flatten(cross_attentioned)
-    # print("flattened", flattened.shape)
     densed1 = self.dense1(flattened1)
-    # print("densed", densed.shape)
     reshaped = self.reshape(densed1)
-    # print("reshaped", reshaped.shape)
+    print("reshaped", reshaped.shape)
+    print("masked", masked.shape)
     added2 = self.add2([reshaped, masked]) # Not sure if it is masked or x here
-    # print(added2.shape)
     normed2 = self.norm2(added2)
-    # print(normed2.shape)
-    # print(reshaped2[2200:2300])
 
     return normed2
 
@@ -190,7 +176,7 @@ class Encoder(tf.keras.layers.Layer):
     self.num_layers = num_layers
 
     self.enc_layers = [
-        EncoderLayer(sequence_length=11114) 
+        EncoderLayer(sequence_length=9322) # this is HARD CODED- CHANGE THIS
         for _ in range(self.num_layers)]
 
   def call(self, x):
@@ -198,7 +184,6 @@ class Encoder(tf.keras.layers.Layer):
     # seq_len is the length (no. timesteps) of a single WAV file
     # 1 is no. values at one timestep in the WAV file. (If dealing with RGB values, would be 3)
 
-    # print("X", x)
     for i in range(self.num_layers):
       x = self.enc_layers[i](x)
 
@@ -211,7 +196,7 @@ class Decoder(tf.keras.layers.Layer):
     self.num_layers = num_layers
 
     self.dec_layers = [
-        DecoderLayer(sequence_length=11114)
+        DecoderLayer(sequence_length=11114) # CHANGE THIS HARD CODED
         for _ in range(self.num_layers)]
 
   def call(self, x, context):
@@ -246,18 +231,14 @@ class Transformer(tf.keras.Model):
 
     
 
-  def call(self, inputs): # inputs is an array of tuples of (chinese, italian)
-    # To use a Keras model with `.fit` you must pass all your inputs in the
-    # first argument.
+  def call(self, inputs):
 
     print("INP", inputs)
-    # THE ERROR: inputs is (<tf.Tensor 'IteratorGetNext:0' shape=(2, 11114, 1) dtype=float32>, <tf.Tensor 'IteratorGetNext:1' shape=(2, 11114, 1) dtype=float32>)
+    # !!!TO DO!!! We need to pass in inputs (Chinese) and tar (Italian). Then get context by calling self.encoder(inputs) and then decoded info by calling self.decoder(tar, context).
+    # Overall, need to change logic here because right now it is just using Chinese when training and basically learning nothing.
+    # How do we generate from our weights (add flag to model?)? 
 
-
-    # print("Chinese shape",inputs.shape)
-    # print("Chinese sample", inputs[0][2100:2200])
     context = self.encoder(inputs)  # (batch_size, context_len, d_model)
-    # 0 is because inputs should be a tuple, with the source language at index 0 and target language at index 1
 
     decoded = self.decoder(inputs, context)  # (batch_size, target_len, d_model)
 
@@ -265,7 +246,7 @@ class Transformer(tf.keras.Model):
     final_densed = self.final_dense(final_flattened)
     final_reshaped = self.final_reshape(final_densed)
     
-    # Return the final output and the attention weights.
+    # Return the final output and the attention weights?
     return final_reshaped
 
 
@@ -273,10 +254,10 @@ class Transformer(tf.keras.Model):
 # HYPERPARAMETERS
 NUM_LAYERS = 3
 NUM_EPOCHS = 2
-BATCH_SIZE = 10 # note: may need to change this to be a divisor of num_samples
-# LEARNING_RATE = 0.1 add this and more necessary hyperparameters
+BATCH_SIZE = 1 # note: may need to change this to be a divisor of num_samples
+# LEARNING_RATE = 0.01 add this and more necessary hyperparameters
 
-def pipeline(source_language, target_language, num_samples, divisor, TRAIN, wav_outfile, weights_file='./transformer_weights_v2.h5'):
+def pipeline(source_language, target_language, num_samples, divisor, TRAIN, wav_outfile, weights_file='transformer_weights_v1.h5'):
 
   # generates an array of batch_size samples
   # Trains if TRAIN
@@ -286,40 +267,67 @@ def pipeline(source_language, target_language, num_samples, divisor, TRAIN, wav_
   # Function only makes 1 prediction. Therefore, if TRAIN, model trains num_samples - 1
   # Need to be careful with source & target language- this depends on what the folders are named.
   # num_samples must be less than or equal to the number of files in the folder
+  # the default is currently a random file. This is very messy, and it could help to clean it up.
   source_data, max_source_len = preprocessing.mp3_to_numpy(source_language, divisor, num_samples)
   target_data, max_target_len = preprocessing.mp3_to_numpy(target_language, divisor, num_samples)
+  print("MAXSOURCELEN", max_source_len)
+  print("MAXTARLEN", max_target_len)
   X = tf.keras.preprocessing.sequence.pad_sequences(source_data, maxlen=max_source_len, padding='post', value=0, dtype='float32')
   Y = tf.keras.preprocessing.sequence.pad_sequences(target_data, maxlen=max_target_len, padding='post', value=0, dtype='float32')
   X = np.expand_dims(X, axis=-1)
   Y = np.expand_dims(Y, axis=-1)
   X_TRAIN, X_TEST = X[:-1], X[-1]
-  Y_TRAIN = Y[:-1]
+  Y_TRAIN, Y_TEST = Y[:-1], Y[-1]
+  X_TEST = np.expand_dims(X_TEST, axis=0)
+  print("X_TRAIN", X_TRAIN)
+  print("XTRAINSHAPE", X_TRAIN.shape)
+  print("X_TEST", X_TEST)
+  print("XTESTSHAPE", X_TEST.shape)
+  print("Y_TRAIN", Y_TRAIN)
+  print("YSHAPE", Y_TRAIN.shape)
 
+  print("A")
+  # this is the training loop.
   if TRAIN:
     model = Transformer(num_layers=NUM_LAYERS)
     model.compile(optimizer='adam', loss='categorical_crossentropy')
     model.fit(X_TRAIN, Y_TRAIN, batch_size=BATCH_SIZE, epochs=NUM_EPOCHS)
     model.save_weights('./transformer_weights_v2.h5')
 
+  print("B")
+  # sets the weights file. If Train, the file used in save_weights is used. Otherwise, the user should specify a weights file or rely on the default.
   if TRAIN:
     weights_file = './transformer_weights_v2.h5'
   else:
     weights_file = weights_file
+    print(weights_file)
 
+  print("C")
   test_model = Transformer(num_layers=NUM_LAYERS)
-  test_model.build(input_shape=(2, max_source_len, 1)) # unsure what first dimension should be
-  test_model.load_weights(weights_file)
+  print("C1")
+  # test_model.build(input_shape=(2, max_source_len, 1)) # unsure what first dimension should be
+  # print("max len", max_source_len)
+  # print("C2")
+  # test_model.load_weights(weights_file)
   # weights = test_model.get_weights()
-  test_model.get_weights()
-  # X_TEST = np.expand_dims(X_TEST, axis=-1)
-  # X_TEST = np.expand_dims(X_TEST, axis=0)
+  # print("C3")
+  # test_model.get_weights()
+  # # X_TEST = np.expand_dims(X_TEST, axis=-1)
+  # # X_TEST = np.expand_dims(X_TEST, axis=0)
+
+  # print("D")
+
+  output_data = test_model(X_TEST, Y_TEST)
+  # dummy_input = tf.zeros((1, max_source_len, 1))
+  # _ = test_model(dummy_input)
 
   output_data = test_model.predict(X_TEST, batch_size=1)
   output_data = np.squeeze(output_data)
 
+  print("E")
+
   rate = 44100
   scaled = np.int16(output_data / np.max(np.abs(output_data)) * 32767)
-  # print("SCALED", scaled.shape)
   wav.write(wav_outfile, rate, scaled)
   
   
@@ -345,7 +353,7 @@ if __name__ == "__main__":
   # model.fit(X, Y, batch_size=2, epochs=2)
   # model.save_weights('./transformer_weights_v1.h5')
 
-  pipeline("chinese", "italian", 16, 10000, False, 'transformer_outputs_1.wav')
+  pipeline("chinese", "italian", 16, 200, False, 'transformer_outputs_1.wav')
 
 
 

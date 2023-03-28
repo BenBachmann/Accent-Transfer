@@ -12,9 +12,11 @@ import tensorflow as tf
 # data = model.transformer()
 
 
-all_data, max_len = preprocessing.mp3_to_numpy("chinese", 10)
+all_data, max_len = preprocessing.mp3_to_numpy("chinese", 150, 30)
+# all_data = preprocessing.mp3_to_numpy_old("chinese")
 
 all_data = tf.keras.preprocessing.sequence.pad_sequences(all_data, maxlen=max_len, padding='post', value=0, dtype='float32')
+print(max_len)
 
 test_model = transformer.Transformer(num_layers=3)
 test_model.build(input_shape=(2, max_len, 1)) # build calls the model.
